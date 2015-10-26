@@ -8,7 +8,7 @@ from chainer.cuda import cupy
 
 class Trainer(object):
     @classmethod
-    def train(self, model, x, y, epoch, x_test=None, y_test=None, batch_size=100, loss_func=F.softmax_cross_entropy, optimizer=None, gpu_device=None):
+    def train(self, model, x, y, epoch, x_test=None, y_test=None, loss_func=F.softmax_cross_entropy, accuracy_func=F.accuracy, batch_size=100, optimizer=None, gpu_device=None):
         if gpu_device is None:
             model.to_cpu()
         else:
@@ -19,14 +19,14 @@ class Trainer(object):
         with cupy.cuda.Device(gpu_device):
             for i in six.moves.range(1, epoch + 1):
                 print 'epoch: {}'.format(i)
-                loss, accuracy = Trainer.train_one(model, x, y, batch_size, optimizer=optimizer, loss_func=loss_func, gpu_device=gpu_device)
+                loss, accuracy = Trainer.train_one(model, x, y, batch_size=batch_size, optimizer=optimizer, loss_func=loss_func, accuracy_func=accuracy_func, gpu_device=gpu_device)
                 print('train mean loss={}, accuracy={}'.format(loss, accuracy))
                 if x_test is not None and y_test is not None:
-                    loss, accuracy = Trainer.train_one(model, x_test, y_test, batch_size, loss_func=loss_func, gpu_device=gpu_device)
+                    loss, accuracy = Trainer.train_one(model, x_test, y_test, batch_size=batch_size, loss_func=loss_func, accuracy_func=accuracy_func, gpu_device=gpu_device)
                     print('test mean loss={}, accuracy={}'.format(loss, accuracy))
 
     @classmethod
-    def train_one(self, model, x, y, batch_size, optimizer=None, loss_func=F.softmax_cross_entropy, gpu_device=None):
+    def train_one(self, model, x, y, loss_func, accuracy_func, batch_size, gpu_device, optimizer=None):
         train = optimizer is not None and loss_func is not None
         total_size = len(x)
         assert total_size == len(y)
@@ -34,7 +34,6 @@ class Trainer(object):
             xp = np
         else:
             xp = cuda.cupy
-        print xp.__name__
         perm = np.random.permutation(total_size)
         sum_loss = 0
         sum_accuracy = 0
@@ -49,5 +48,5 @@ class Trainer(object):
                 loss.backward()
                 optimizer.update()
             sum_loss += float(loss.data) * batch_size
-            sum_accuracy += float(F.accuracy(y_out, y_batch).data) * batch_size
+            sum_accuracy += float(accuracy_func(y_out, y_batch).data) * batch_size
         return (sum_loss / total_size, sum_accuracy / total_size)
