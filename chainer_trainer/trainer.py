@@ -27,9 +27,18 @@ class Trainer(object):
 
     @classmethod
     def train_one(self, model, x, y, loss_func, accuracy_func, batch_size, gpu_device, optimizer=None):
+        x_is_tuple = isinstance(x, tuple)
+        y_is_tuple = isinstance(y, tuple)
         train = optimizer is not None and loss_func is not None
-        total_size = len(x)
-        assert total_size == len(y)
+        if x_is_tuple:
+            total_size = len(x[0])
+            assert all(total_size == len(z) for z in x)
+        else:
+            total_size = len(x)
+        if y_is_tuple:
+            assert all(total_size == len(z) for z in y)
+        else:
+            assert total_size == len(y)
         if gpu_device is None:
             xp = np
         else:
@@ -38,8 +47,15 @@ class Trainer(object):
         sum_loss = 0
         sum_accuracy = 0
         for i in six.moves.range(0, total_size, batch_size):
-            x_batch = chainer.Variable(xp.asarray(x[perm[i:i + batch_size]]))
-            y_batch = chainer.Variable(xp.asarray(y[perm[i:i + batch_size]]))
+            to_batch_variable = lambda data: chainer.Variable(xp.asarray(data[perm[i:i + batch_size]]))
+            if x_is_tuple:
+                x_batch = tuple(map(to_batch_variable, x))
+            else:
+                x_batch = to_batch_variable(x)
+            if y_is_tuple:
+                y_batch = tuple(map(to_batch_variable, y))
+            else:
+                y_batch = to_batch_variable(y)
             if train:
                 optimizer.zero_grads()
             y_out = model.forward(x_batch, train=train)
