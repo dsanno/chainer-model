@@ -4,7 +4,6 @@ import chainer
 import chainer.functions as F
 from chainer import optimizers
 from chainer import cuda
-from chainer.cuda import cupy
 
 class Trainer(object):
     @classmethod
