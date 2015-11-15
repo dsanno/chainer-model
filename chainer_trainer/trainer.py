@@ -16,14 +16,13 @@ class Trainer(object):
         if optimizer is None:
             optimizer = optimizers.Adam()
         optimizer.setup(model)
-        with cupy.cuda.Device(gpu_device):
-            for i in six.moves.range(1, epoch + 1):
-                print 'epoch: {}'.format(i)
-                loss, accuracy = Trainer.train_one(model, x, y, batch_size=batch_size, optimizer=optimizer, loss_func=loss_func, accuracy_func=accuracy_func, gpu_device=gpu_device)
-                print('train mean loss={}, accuracy={}'.format(loss, accuracy))
-                if x_test is not None and y_test is not None:
-                    loss, accuracy = Trainer.train_one(model, x_test, y_test, batch_size=batch_size, loss_func=loss_func, accuracy_func=accuracy_func, gpu_device=gpu_device)
-                    print('test mean loss={}, accuracy={}'.format(loss, accuracy))
+        for i in six.moves.range(1, epoch + 1):
+            print 'epoch: {}'.format(i)
+            loss, accuracy = Trainer.train_one(model, x, y, batch_size=batch_size, optimizer=optimizer, loss_func=loss_func, accuracy_func=accuracy_func, gpu_device=gpu_device)
+            print('train mean loss={}, accuracy={}'.format(loss, accuracy))
+            if x_test is not None and y_test is not None:
+                loss, accuracy = Trainer.train_one(model, x_test, y_test, batch_size=batch_size, loss_func=loss_func, accuracy_func=accuracy_func, gpu_device=gpu_device)
+                print('test mean loss={}, accuracy={}'.format(loss, accuracy))
 
     @classmethod
     def train_one(self, model, x, y, loss_func, accuracy_func, batch_size, gpu_device, optimizer=None):
