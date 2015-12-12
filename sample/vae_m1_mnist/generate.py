@@ -1,13 +1,14 @@
 import os
 import numpy as np
 import argparse
-from chainer_trainer.model import Model
 from scipy import misc
-from chainer import cuda, Variable
+from chainer import cuda, Variable, serializers
+from chainer_trainer.model import VAEModel
+from net import MnistM1Net
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--input', '-i',      type=str, required=True,
-                    help="input model file path")
+                    help="input model file path without extension")
 parser.add_argument('--output_dir', '-o', type=str, default="generated",
                     help="output directory path")
 parser.add_argument('--gpu', '-g',        type=int, default=-1,
@@ -16,7 +17,10 @@ args = parser.parse_args()
 
 if not os.path.exists(args.output_dir):
     os.mkdir(args.output_dir)
-model = Model.load(args.input)
+model = VAEModel(MnistM1Net())
+serializers.load_hdf5(args.input + '.model', model)
+predictor = model['predictor']
+
 if args.gpu >= 0:
     model.to_gpu(args.gpu)
     xp = cuda.cupy
@@ -26,8 +30,8 @@ else:
 
 image_size = (28, 28)
 sample_num = 100
-z = xp.random.standard_normal((sample_num, model.rec_mean.W.shape[0])).astype(np.float32)
-y = model.generate(Variable(z))
+z = xp.random.standard_normal((sample_num, predictor.latent_num)).astype(np.float32)
+y = predictor.generate(Variable(z))
 y_data = cuda.to_cpu(y.data)
 
 for i in range(sample_num):

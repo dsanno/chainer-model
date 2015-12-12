@@ -1,22 +1,46 @@
-import numpy as np
-import pickle
-import six
-import chainer
-import chainer.functions as F
+from chainer import link
+from chainer.functions.evaluation import accuracy
+from chainer.functions.loss import softmax_cross_entropy as sce
+from chainer.functions.loss import mean_squared_error as mse
+from chainer.functions.loss import vae
 
-class Model(chainer.FunctionSet):
-    def __init__(self, **functions):
-        chainer.FunctionSet.__init__(self, **functions)
+class Model(link.Chain):
+    def __init__(self, predictor):
+        super(Model, self).__init__(predictor=predictor)
+        self.y = None
+        self.loss = None
+        self.accuracy = None
+        self.compute_accuracy = True
 
-    @classmethod
-    def load(self, file_path):
-        with open(file_path, 'rb') as f:
-            model = pickle.load(f)
-        return model
+    def __call__(self, x, t, train=True):
+        self.y = self.predictor(x, train=train)
+        self.loss = self.calc_loss(self.y, t)
+        if self.compute_accuracy:
+            self.accuracy = self.calc_accuracy(self.y, t)
+        return self.loss
 
-    def save(self, file_path):
-        with open(file_path, 'wb') as f:
-            pickle.dump(self, f, -1)
+    def calc_loss(self, y, t):
+        raise NotImplementedError
 
-    def forward(self, x, train=True):
-        raise "forward must be implemented"
+    def calc_accuracy(self, y, t):
+        raise NotImplementedError
+
+class Classifier(Model):
+    def __init__(self, predictor):
+        super(Classifier, self).__init__(predictor)
+
+    def calc_loss(self, y, t):
+        return sce.softmax_cross_entropy(y, t)
+
+    def calc_accuracy(self, y, t):
+        return accuracy.accuracy(y, t)
+
+class VAEModel(Model):
+    def __init__(self, predictor):
+        super(VAEModel, self).__init__(predictor)
+
+    def calc_loss(self, (y, mean, var), t):
+        return mse.mean_squared_error(y, t) + vae.gaussian_kl_divergence(mean, var) / float(y.data.size)
+
+    def calc_accuracy(self, (y, mean, var), t):
+        return mse.mean_squared_error(y, t)

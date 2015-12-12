@@ -29,7 +29,7 @@ if args.gpu >= 0:
 
 print('load MNIST dataset')
 mnist = data.load_mnist_data()
-mnist['data'] = mnist['data'].astype(np.float32)
+mnist['data'] = mnist['data'].reshape((mnist['data'].shape[0], 1, 28, 28)).astype(np.float32)
 mnist['data'] /= 255
 mnist['target'] = mnist['target'].astype(np.int32)
 
@@ -60,5 +60,5 @@ def progress_func(epoch, loss, accuracy, validate_loss, validate_accuracy, test_
         print('test     mean loss={}, accuracy={}'.format(test_loss, test_accuracy))
 
 Trainer.train(model, x_train, y_train, args.iter, x_validate=x_validate, y_validate=y_validate,
-    x_test=x_test, y_test=y_test, batch_size=100, gpu_device=gpu_device, optimizer=optimizer,
+    x_test=x_test, y_test=y_test, batch_size=50, gpu_device=gpu_device, optimizer=optimizer,
     callback=progress_func)

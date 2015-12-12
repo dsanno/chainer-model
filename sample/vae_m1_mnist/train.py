@@ -2,19 +2,21 @@ import argparse
 import numpy as np
 
 import chainer
-import chainer.functions as F
 from chainer import cuda
-import data
-from model import MnistM1Model
+import chainer.links as L
+from chainer import optimizers
+from chainer import serializers
 from chainer_trainer.trainer import Trainer
-from chainer_trainer.model import Model
+from chainer_trainer.model import VAEModel
+import data
+from net import MnistM1Net
 
 parser = argparse.ArgumentParser(description='Chainer training example: MNIST')
 parser.add_argument('--gpu', '-g', default=-1, type=int,
                     help='GPU ID (negative value indicates CPU)')
 parser.add_argument('--input', '-i', default=None, type=str,
-                    help='input model file path')
-parser.add_argument('--output', '-o', default=None, type=str,
+                    help='input model file path without extension')
+parser.add_argument('--output', '-o', required=True, type=str,
                     help='output model file path')
 parser.add_argument('--iter', default=100, type=int,
                     help='number of iteration')
@@ -25,30 +27,29 @@ if args.gpu >= 0:
     cuda.check_cuda_available()
     gpu_device = args.gpu
 
-batch_size = 100
-
 print('load MNIST dataset')
 mnist = data.load_mnist_data()
 mnist['data'] = mnist['data'].astype(np.float32)
 mnist['data'] /= 255
-mnist['target'] = mnist['target'].astype(np.int32)
 
 N = 60000
-x_train, x_test = np.split(mnist['data'],   [N])
-y_train, y_test = np.split(mnist['target'], [N])
+x_train, x_test = np.split(mnist['data'], [N])
 
-if args.input is not None:
-    model = Model.load(args.input)
-else:
-    model = MnistM1Model()
+model = VAEModel(MnistM1Net())
+optimizer = optimizers.Adam()
+optimizer.setup(model)
 
-def loss_func((y, mean, var), target):
-    return F.mean_squared_error(y, target) - 0.5 * F.sum(1 + var - mean ** 2 - F.exp(var)) / float(y.data.size)
+state = {'max_accuracy': 0}
+def progress_func(epoch, loss, accuracy, validate_loss, validate_accuracy, test_loss, test_accuracy):
+    print 'epoch: {} done'.format(epoch)
+    print('train    mean loss={}, accuracy={}'.format(loss, accuracy))
+    if validate_loss is not None and validate_accuracy is not None:
+        print('validate mean loss={}, accuracy={}'.format(validate_loss, validate_accuracy))
+    if test_loss is not None and test_accuracy is not None:
+        print('test     mean loss={}, accuracy={}'.format(test_loss, test_accuracy))
+    if epoch % 10 == 0:
+        serializers.save_hdf5(args.output + '.model', model)
+        serializers.save_hdf5(args.output + '.state', optimizer)
 
-def accuracy_func((y, mean, var), target):
-    return F.mean_squared_error(y, target)
-
-Trainer.train(model, x_train, x_train, args.iter, x_test=x_test, y_test=x_test, batch_size=100, gpu_device=gpu_device, loss_func=loss_func, accuracy_func=accuracy_func)
-
-if args.output is not None:
-    model.save(args.output);
+Trainer.train(model, x_train, x_train, args.iter, x_test=x_test, y_test=x_test, batch_size=1000,
+    gpu_device=gpu_device, optimizer=optimizer, callback=progress_func)

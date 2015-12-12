@@ -1,31 +1,32 @@
 import numpy as np
+import chainer
 import chainer.functions as F
-from chainer import cuda
-from chainer import Variable
-from chainer_trainer.model import Model
+import chainer.links as L
+from chainer import cuda, Variable
 
-class MnistM2Model(Model):
+class MnistM2Net(chainer.Chain):
+
     def __init__(self):
-        Model.__init__(self,
-            rec1_x = F.Linear(784, 500),
-            rec1_y = F.Linear(10, 500),
-            rec2 = F.Linear(500, 500),
-            rec_mean = F.Linear(500, 50),
-            rec_var  = F.Linear(500, 50),
-            gen1_z = F.Linear(50, 500),
-            gen1_y = F.Linear(10, 500),
-            gen2 = F.Linear(500, 500),
-            gen3 = F.Linear(500, 784)
+        super(MnistM2Net, self).__init__(
+            rec1_x = L.Linear(784, 500),
+            rec1_y = L.EmbedID(10, 500),
+            rec2 = L.Linear(500, 500),
+            rec_mean = L.Linear(500, 50),
+            rec_var  = L.Linear(500, 50),
+            gen1_z = L.Linear(50, 500),
+            gen1_y = L.EmbedID(10, 500),
+            gen2 = L.Linear(500, 500),
+            gen3 = L.Linear(500, 784)
         )
 
-    def forward(self, (x_var, y_var), train=True):
+    def __call__(self, (x_var, y_var), train=True):
         xp = cuda.get_array_module(x_var.data)
         h1 = F.relu(self.rec1_x(x_var) + self.rec1_y(y_var))
         h2 = F.relu(self.rec2(h1))
         mean = self.rec_mean(h2)
         var  = 0.5 * self.rec_var(h2)
         rand = xp.random.normal(0, 1, var.data.shape).astype(np.float32)
-        z  = mean + F.exp(var) * Variable(rand)
+        z  = mean + F.exp(var) * Variable(rand, volatile=not train)
         g1 = F.relu(self.gen1_z(z) + self.gen1_y(y_var))
         g2 = F.relu(self.gen2(g1))
         g3 = F.sigmoid(self.gen3(g2))
@@ -41,11 +42,11 @@ class MnistM2Model(Model):
         mean = self.rec_mean(h2)
         var  = 0.5 * self.rec_var(h2)
 
-        mean_gen = Variable(xp.asarray(np.repeat(cuda.to_cpu(mean.data), gen_num, axis=0)))
-        var_gen  = Variable(xp.asarray(np.repeat(cuda.to_cpu(var.data), gen_num, axis=0)))
-        y_gen = Variable(xp.asarray(np.repeat(cuda.to_cpu(y_gen.data), rec_num, axis=0)))
+        mean_gen = Variable(xp.asarray(np.repeat(cuda.to_cpu(mean.data), gen_num, axis=0)), volatile=True)
+        var_gen  = Variable(xp.asarray(np.repeat(cuda.to_cpu(var.data), gen_num, axis=0)), volatile=True)
+        y_gen = Variable(xp.asarray(np.repeat(cuda.to_cpu(y_gen.data), rec_num, axis=0)), volatile=True)
         rand = xp.random.normal(0, 1, var_gen.data.shape).astype(np.float32)
-        z  = mean_gen + F.exp(var_gen) * Variable(rand)
+        z  = mean_gen + F.exp(var_gen) * Variable(rand, volatile=True)
         g1 = F.relu(self.gen1_z(z) + self.gen1_y(y_gen))
         g2 = F.relu(self.gen2(g1))
         g3 = F.sigmoid(self.gen3(g2))
